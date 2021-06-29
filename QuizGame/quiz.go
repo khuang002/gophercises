@@ -12,7 +12,7 @@ import (
 
 func main() {
 	fileName := flag.String("f", "problems.csv", "Name of the problem file ")
-	duration := flag.Int64("t", 100, "Duration (in second) of the quiz. Default is 30 sec.")
+	duration := flag.Int64("t", 30, "Duration (in second) of the quiz. Default is 30 sec.")
 	flag.Parse()
 
 	fmt.Println("Hit enter to begin.")
@@ -31,22 +31,30 @@ func main() {
 	fileDate, err := r.ReadAll()
 	check(err)
 	numLines, points := len(fileDate), 0
-
-	time.AfterFunc(time.Second*time.Duration(*duration), func() {
-		fmt.Println("Time exceeded.")
-		fmt.Println(points, "/", numLines, "correct.")
-		os.Exit(0)
-	})
 	problems := parseLines(fileDate)
+
+	timer := time.NewTimer(time.Second * time.Duration(*duration))
+
+problemLoop:
 	for _, problem := range problems {
 		fmt.Println(problem.q)
-		var answer string
-		fmt.Scanf("%s\n", &answer)
-		if answer == problem.a {
-			points++
-			fmt.Println("you got it correct!")
-		} else {
-			fmt.Println("you got it wrong!")
+		answerCh := make(chan string)
+		go func() {
+			var answer string
+			fmt.Scanf("%s\n", &answer)
+			answerCh <- answer
+		}()
+		select {
+		case <-timer.C:
+			fmt.Println("Time exceeded.")
+			break problemLoop
+		case answer := <-answerCh:
+			if answer == problem.a {
+				points++
+				fmt.Println("you got it correct!")
+			} else {
+				fmt.Println("you got it wrong!")
+			}
 		}
 	}
 	fmt.Println(points, "/", numLines, "correct.")
